@@ -51,6 +51,9 @@ def log_error(title=None, message=None, reference_doctype=None, reference_name=N
 			traceback = message
 
 	title = title or "Error"
+	# Truncate title to 140 characters (max length for Error Log method field)
+	if len(title) > 140:
+		title = title[:137] + "..."
 	traceback = frappe.as_unicode(traceback or frappe.get_traceback(with_context=True))
 
 	if not frappe.db:

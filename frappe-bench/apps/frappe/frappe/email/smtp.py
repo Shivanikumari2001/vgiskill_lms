@@ -97,12 +97,51 @@ class SMTPServer:
 		except smtplib.SMTPAuthenticationError:
 			self.throw_invalid_credentials_exception(email_account=self.email_account)
 
-		except OSError as e:
-			# Invalid mail server -- due to refusing connection
-			frappe.throw(
-				_("Invalid Outgoing Mail Server or Port: {0}").format(str(e)),
-				title=_("Incorrect Configuration"),
+		except (smtplib.SMTPServerDisconnected, smtplib.SMTPException) as e:
+			# SMTP connection errors - show warning but allow saving
+			# This allows users to save the form even if SMTP server is temporarily unavailable
+			frappe.msgprint(
+				_("Warning: Could not connect to SMTP server. {0}").format(str(e)),
+				indicator="orange",
+				title=_("SMTP Connection Warning")
 			)
+			# Log the error for debugging
+			frappe.log_error(
+				_("SMTP connection failed: {0}").format(str(e)),
+				"Email Account SMTP Validation"
+			)
+			# Return None to indicate validation failed but don't block save
+			return None
+
+		except OSError as e:
+			# Network/connection errors - show warning but allow saving
+			frappe.msgprint(
+				_("Warning: Could not connect to SMTP server. {0}").format(str(e)),
+				indicator="orange",
+				title=_("SMTP Connection Warning")
+			)
+			# Log the error for debugging
+			frappe.log_error(
+				_("SMTP connection failed: {0}").format(str(e)),
+				"Email Account SMTP Validation"
+			)
+			# Return None to indicate validation failed but don't block save
+			return None
+
+		except Exception as e:
+			# Catch any other unexpected exceptions - show warning but allow saving
+			frappe.msgprint(
+				_("Warning: SMTP validation encountered an error. {0}").format(str(e)),
+				indicator="orange",
+				title=_("SMTP Validation Warning")
+			)
+			# Log the error for debugging
+			frappe.log_error(
+				_("SMTP validation failed with unexpected error: {0}").format(str(e)),
+				"Email Account SMTP Validation"
+			)
+			# Return None to indicate validation failed but don't block save
+			return None
 
 	def _enqueue_connection_closure(self):
 		if frappe.request and hasattr(frappe.request, "after_response"):

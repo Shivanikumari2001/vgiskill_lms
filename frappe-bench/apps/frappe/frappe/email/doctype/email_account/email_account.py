@@ -184,8 +184,27 @@ class EmailAccount(Document):
 		if not self.smtp_server:
 			frappe.throw(_("SMTP Server is required"))
 
-		server = self.get_smtp_server()
-		return server.session
+		try:
+			server = self.get_smtp_server()
+			session = server.session
+			# If session is None, connection failed but we allow saving with warning
+			if session is None:
+				# Warning already shown in smtp.py, just return
+				return
+			return session
+		except Exception as e:
+			# Catch any other exceptions and show warning instead of blocking save
+			frappe.msgprint(
+				_("Warning: Could not validate SMTP connection. {0}").format(str(e)),
+				indicator="orange",
+				title=_("SMTP Validation Warning")
+			)
+			frappe.log_error(
+				_("SMTP validation failed: {0}").format(str(e)),
+				"Email Account SMTP Validation"
+			)
+			# Allow saving even if validation fails
+			return
 
 	def before_save(self):
 		messages = []

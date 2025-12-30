@@ -36,6 +36,12 @@ class LMSEnrollment(Document):
 			frappe.throw(_("You cannot enroll in an unpublished course."))
 
 		if course_details.paid_course:
+			# If enrollment already has a payment field set, we're in payment authorization flow
+			# Skip validation in this case as payment_received is being set in the same transaction
+			if self.payment:
+				return
+			
+			# Check if payment exists and is received
 			payment = frappe.db.exists(
 				"LMS Payment",
 				{

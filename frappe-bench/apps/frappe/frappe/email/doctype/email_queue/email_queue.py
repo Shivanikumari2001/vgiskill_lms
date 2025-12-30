@@ -168,6 +168,18 @@ class EmailQueue(Document):
 
 		with SendMailContext(self, smtp_server_instance) as ctx:
 			ctx.fetch_smtp_server()
+			
+			# Check if SMTP server session is available
+			if not ctx.smtp_server or not ctx.smtp_server.session:
+				error_msg = _("SMTP server is not configured or connection failed. Please check your Email Account settings.")
+				frappe.log_error(
+					error_msg,
+					"Email Queue Send Error"
+				)
+				# Raise exception to trigger error handling in __exit__
+				# The __exit__ method will handle marking recipients as failed
+				raise frappe.OutgoingEmailError(error_msg)
+			
 			message = None
 			for recipient in self.recipients:
 				if recipient.is_mail_sent():

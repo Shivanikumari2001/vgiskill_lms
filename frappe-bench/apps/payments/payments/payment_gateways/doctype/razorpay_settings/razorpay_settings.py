@@ -457,8 +457,12 @@ class RazorpaySettings(Document):
 						self.data.reference_doctype, self.data.reference_docname
 					).run_method("on_payment_authorized", self.flags.status_changed_to)
 
-				except Exception:
-					frappe.log_error(frappe.get_traceback())
+				except Exception as e:
+					# Use a short title and pass traceback as message to avoid truncation issues
+					frappe.log_error(
+						title=f"Payment Authorization Error: {self.data.reference_doctype}",
+						message=frappe.get_traceback()
+					)
 
 				if custom_redirect_to:
 					redirect_to = custom_redirect_to
