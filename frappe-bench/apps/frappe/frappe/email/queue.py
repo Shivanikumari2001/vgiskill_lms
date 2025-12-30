@@ -161,6 +161,18 @@ def flush():
 				frappe.throw(_("Email Queue flushing aborted due to too many failures."))
 
 
+@frappe.whitelist()
+def flush_email_queue():
+	"""Manually flush email queue. Can be called from UI or API."""
+	frappe.only_for("System Manager")
+	try:
+		flush()
+		return {"success": True, "message": _("Email queue flushed successfully")}
+	except Exception as e:
+		frappe.log_error(_("Error flushing email queue: {0}").format(str(e)))
+		return {"success": False, "message": _("Error flushing email queue: {0}").format(str(e))}
+
+
 def get_queue():
 	batch_size = cint(frappe.conf.email_queue_batch_size) or 500
 

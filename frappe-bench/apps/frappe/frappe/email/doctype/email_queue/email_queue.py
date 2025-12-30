@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import quopri
+import smtplib
 import traceback
 from contextlib import suppress
 from email.parser import Parser
@@ -161,24 +162,41 @@ class EmailQueue(Document):
 
 		return True
 
-	def send(self, smtp_server_instance: SMTPServer = None, force_send: bool = False):
+	def send(self, smtp_server_instance: SMTPServer = None, force_send: bool = False, is_send_now: bool = False):
 		"""Send emails to recipients."""
 		if not self.can_send_now() and not force_send:
 			return
 
-		with SendMailContext(self, smtp_server_instance) as ctx:
+		with SendMailContext(self, smtp_server_instance, is_send_now=is_send_now) as ctx:
 			ctx.fetch_smtp_server()
 			
-			# Check if SMTP server session is available
-			if not ctx.smtp_server or not ctx.smtp_server.session:
-				error_msg = _("SMTP server is not configured or connection failed. Please check your Email Account settings.")
+			# Check if SMTP server is available
+			if not ctx.smtp_server:
+				error_msg = _("SMTP server is not configured. Please check your Email Account settings.")
 				frappe.log_error(
 					error_msg,
 					"Email Queue Send Error"
 				)
-				# Raise exception to trigger error handling in __exit__
-				# The __exit__ method will handle marking recipients as failed
 				raise frappe.OutgoingEmailError(error_msg)
+			
+			# Set flag to indicate we're in email sending mode
+			# This ensures SMTP connection errors raise exceptions instead of returning None
+			frappe.flags.in_email_send = True
+			try:
+				# Try to get SMTP session - this will attempt to connect
+				# If connection fails, it will raise OutgoingEmailError
+				session = ctx.smtp_server.session
+				
+				if not session:
+					error_msg = _("SMTP server connection failed. Please check your Email Account settings and ensure the SMTP server is accessible.")
+					frappe.log_error(
+						error_msg,
+						"Email Queue Send Error"
+					)
+					raise frappe.OutgoingEmailError(error_msg)
+			finally:
+				# Clear the flag
+				frappe.flags.in_email_send = False
 			
 			message = None
 			for recipient in self.recipients:
@@ -190,11 +208,41 @@ class EmailQueue(Document):
 					method(self, self.sender, recipient.recipient, message)
 				else:
 					if not frappe.flags.in_test or frappe.flags.testing_email:
-						ctx.smtp_server.session.sendmail(
-							from_addr=self.sender,
-							to_addrs=recipient.recipient,
-							msg=message.decode("utf-8").encode(),
-						)
+						# Ensure session is still valid before sending
+						# If session was closed or became invalid, get a new one
+						if not ctx.smtp_server.is_session_active():
+							session = ctx.smtp_server.session
+							if not session:
+								raise frappe.OutgoingEmailError(
+									_("SMTP session is not available. Please check your Email Account settings.")
+								)
+						
+						# Use the session to send email
+						try:
+							session.sendmail(
+								from_addr=self.sender,
+								to_addrs=recipient.recipient,
+								msg=message.decode("utf-8").encode(),
+							)
+						except (smtplib.SMTPServerDisconnected, smtplib.SMTPException, AttributeError) as e:
+							# Session became invalid during sending, try to reconnect
+							frappe.log_error(
+								_("SMTP session error during send: {0}. Attempting to reconnect...").format(str(e)),
+								"Email Send Session Error"
+							)
+							# Clear the session to force reconnection
+							ctx.smtp_server._session = None
+							session = ctx.smtp_server.session
+							if not session:
+								raise frappe.OutgoingEmailError(
+									_("Failed to reconnect to SMTP server: {0}").format(str(e))
+								)
+							# Retry sending with new session
+							session.sendmail(
+								from_addr=self.sender,
+								to_addrs=recipient.recipient,
+								msg=message.decode("utf-8").encode(),
+							)
 
 				ctx.update_recipient_status_to_sent(recipient)
 
@@ -251,6 +299,7 @@ class SendMailContext:
 		self,
 		queue_doc: Document,
 		smtp_server_instance: SMTPServer = None,
+		is_send_now: bool = False,
 	):
 		self.queue_doc: EmailQueue = queue_doc
 		self.smtp_server: SMTPServer = smtp_server_instance
@@ -258,6 +307,7 @@ class SendMailContext:
 			rec.recipient for rec in self.queue_doc.recipients if rec.is_mail_sent()
 		)
 		self.email_account_doc = None
+		self.is_send_now = is_send_now  # Track if this is a send_now attempt
 
 	def fetch_smtp_server(self):
 		self.email_account_doc = self.queue_doc.get_email_account(raise_error=True)
@@ -278,13 +328,25 @@ class SendMailContext:
 						"retry": self.queue_doc.retry + 1,
 					}
 				)
+				# Suppress OutgoingEmailError if we have retries left
+				# When send_now=True, the retry logic in process() handles retries,
+				# so we suppress exceptions here to allow the retry loop to continue
+				if exc_type == frappe.OutgoingEmailError:
+					exc_type = None
 			else:
 				update_fields.update({"status": "Error"})
 				self.notify_failed_email()
+				# Suppress OutgoingEmailError even when retries exhausted
+				# The error is logged and user is notified via Notification Log
+				if exc_type == frappe.OutgoingEmailError:
+					exc_type = None
 		else:
 			update_fields = {"status": "Sent"}
 
 		self.queue_doc.update_status(**update_fields, commit=True)
+		
+		# Return True to suppress the exception if it was OutgoingEmailError
+		return exc_type is None
 
 	@savepoint(catch=Exception)
 	def notify_failed_email(self):
@@ -472,6 +534,7 @@ def send_now(name, force_send: bool = False):
 def toggle_sending(enable):
 	frappe.only_for("System Manager")
 	frappe.db.set_default("suspend_email_queue", 0 if sbool(enable) else 1)
+
 
 
 def on_doctype_update():
@@ -769,7 +832,60 @@ class QueueBuilder:
 		if not queue_separately:
 			recipients = list(set(final_recipients + self.final_cc() + self.final_bcc()))
 			q = EmailQueue.new({**queue_data, **{"recipients": recipients}}, ignore_permissions=True)
-			send_now and q.send()
+			if send_now:
+				# When send_now=True, retry sending immediately if it fails
+				# This ensures emails are actually sent synchronously when possible
+				max_immediate_retries = 3
+				
+				for retry_attempt in range(max_immediate_retries):
+					try:
+						# Reset status and retry count for fresh attempt
+						q.reload()
+						if q.status == "Sent":
+							# Already sent, no need to retry
+							break
+						
+						# Reset to allow retry
+						q.update_status(status="Not Sent", retry=0, commit=True)
+						frappe.db.commit()
+						
+						# Attempt to send with is_send_now flag
+						# Exception will be suppressed by __exit__ to allow retry loop to continue
+						q.send(force_send=True, is_send_now=True)
+						
+						# Check if email was successfully sent
+						q.reload()
+						frappe.db.commit()
+						
+						if q.status == "Sent":
+							# Successfully sent
+							break
+						elif q.status == "Error" and retry_attempt < max_immediate_retries - 1:
+							# Error but we can retry - wait before next attempt
+							import time
+							time.sleep(2 ** retry_attempt)  # Exponential backoff: 1s, 2s, 4s
+							continue
+						elif q.status in ["Not Sent", "Partially Sent"] and retry_attempt < max_immediate_retries - 1:
+							# Connection likely failed, retry after delay
+							import time
+							time.sleep(2 ** retry_attempt)
+							continue
+						else:
+							# Final attempt failed or status is Error - email will be queued for later
+							break
+					except Exception as e:
+						# Any exception - log and retry if attempts remain
+						if retry_attempt < max_immediate_retries - 1:
+							import time
+							time.sleep(2 ** retry_attempt)
+							continue
+						else:
+							# Last attempt failed - email will be queued for later retry
+							frappe.log_error(
+								_("Email sending failed after {0} immediate retries. Email queued for later retry.").format(max_immediate_retries),
+								"Email Send Now Failed"
+							)
+							break
 			return q
 		else:
 			if send_now and len(final_recipients) >= 1000:

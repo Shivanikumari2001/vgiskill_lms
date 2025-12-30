@@ -161,7 +161,9 @@ class EmailAccount(Document):
 					self.no_failed = 0
 
 				if self.enable_outgoing:
-					self.validate_smtp_conn()
+					# Skip SMTP validation if email queue is suspended (email not needed)
+					if not cint(frappe.db.get_default("suspend_email_queue")):
+						self.validate_smtp_conn()
 			else:
 				if self.enable_incoming or (self.enable_outgoing and not self.no_smtp_authentication):
 					if not use_oauth:
@@ -187,18 +189,14 @@ class EmailAccount(Document):
 		try:
 			server = self.get_smtp_server()
 			session = server.session
-			# If session is None, connection failed but we allow saving with warning
+			# If session is None, connection failed but we allow saving
+			# Error is already logged in smtp.py, no need to show popup
 			if session is None:
-				# Warning already shown in smtp.py, just return
 				return
 			return session
 		except Exception as e:
-			# Catch any other exceptions and show warning instead of blocking save
-			frappe.msgprint(
-				_("Warning: Could not validate SMTP connection. {0}").format(str(e)),
-				indicator="orange",
-				title=_("SMTP Validation Warning")
-			)
+			# Catch any other exceptions and log error instead of blocking save
+			# Don't show popup warning to avoid interrupting user workflow
 			frappe.log_error(
 				_("SMTP validation failed: {0}").format(str(e)),
 				"Email Account SMTP Validation"

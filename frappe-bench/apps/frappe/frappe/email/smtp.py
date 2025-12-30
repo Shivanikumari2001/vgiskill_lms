@@ -2,6 +2,7 @@
 # License: MIT. See LICENSE
 
 import smtplib
+import time
 from contextlib import suppress
 
 import frappe
@@ -70,78 +71,126 @@ class SMTPServer:
 			return self._session
 
 		SMTP = smtplib.SMTP_SSL if self.use_ssl else smtplib.SMTP
+		
+		# Retry connection up to 3 times with exponential backoff
+		max_retries = 3
+		last_exception = None
+		
+		for attempt in range(max_retries):
+			_session = None
+			try:
+				_session = SMTP(self.server, self.port, timeout=2 * 60)
+				if not _session:
+					raise frappe.OutgoingEmailError(_("Could not connect to outgoing email server"))
 
-		try:
-			_session = SMTP(self.server, self.port, timeout=2 * 60)
-			if not _session:
-				frappe.msgprint(
-					_("Could not connect to outgoing email server"), raise_exception=frappe.OutgoingEmailError
+				self.secure_session(_session)
+
+				if self.use_oauth:
+					Oauth(_session, self.email_account, self.login, self.access_token).connect()
+
+				elif self.password:
+					res = _session.login(str(self.login or ""), str(self.password or ""))
+
+					# check if logged correctly
+					if res[0] != 235:
+						raise frappe.OutgoingEmailError(_("SMTP login failed: {0}").format(res[1]))
+
+				self._session = _session
+				self._enqueue_connection_closure()
+				return self._session
+
+			except smtplib.SMTPAuthenticationError as e:
+				# Authentication errors should not be retried
+				last_exception = e
+				if _session:
+					try:
+						_session.quit()
+					except Exception:
+						pass
+				# During validation, allow saving with warning
+				# During actual sending, raise exception
+				if hasattr(frappe.flags, 'in_email_send') and frappe.flags.in_email_send:
+					self.throw_invalid_credentials_exception(email_account=self.email_account)
+				else:
+					frappe.log_error(
+						_("SMTP authentication failed: Invalid credentials"),
+						"Email Account SMTP Validation"
+					)
+					return None
+				break
+
+			except (smtplib.SMTPServerDisconnected, smtplib.SMTPException, OSError) as e:
+				last_exception = e
+				if _session:
+					try:
+						_session.quit()
+					except Exception:
+						pass
+				
+				# If this is the last attempt or during validation, handle accordingly
+				if attempt == max_retries - 1:
+					# Last attempt failed
+					if hasattr(frappe.flags, 'in_email_send') and frappe.flags.in_email_send:
+						# During sending, raise exception to trigger retry mechanism in email queue
+						raise frappe.OutgoingEmailError(
+							_("SMTP connection failed after {0} attempts: {1}").format(max_retries, str(e))
+						)
+					else:
+						# During validation, log and return None to allow saving
+						frappe.log_error(
+							_("SMTP connection failed: {0}").format(str(e)),
+							"Email Account SMTP Validation"
+						)
+						return None
+				else:
+					# Wait before retrying (exponential backoff: 1s, 2s, 4s)
+					wait_time = 2 ** attempt
+					time.sleep(wait_time)
+					continue
+
+			except Exception as e:
+				last_exception = e
+				if _session:
+					try:
+						_session.quit()
+					except Exception:
+						pass
+				
+				# If this is the last attempt or during validation, handle accordingly
+				if attempt == max_retries - 1:
+					# Last attempt failed
+					if hasattr(frappe.flags, 'in_email_send') and frappe.flags.in_email_send:
+						# During sending, raise exception to trigger retry mechanism in email queue
+						raise frappe.OutgoingEmailError(
+							_("SMTP error after {0} attempts: {1}").format(max_retries, str(e))
+						)
+					else:
+						# During validation, log and return None to allow saving
+						frappe.log_error(
+							_("SMTP validation failed with unexpected error: {0}").format(str(e)),
+							"Email Account SMTP Validation"
+						)
+						return None
+				else:
+					# Wait before retrying (exponential backoff: 1s, 2s, 4s)
+					wait_time = 2 ** attempt
+					time.sleep(wait_time)
+					continue
+		
+		# Should not reach here, but just in case
+		if last_exception:
+			if hasattr(frappe.flags, 'in_email_send') and frappe.flags.in_email_send:
+				raise frappe.OutgoingEmailError(
+					_("SMTP connection failed: {0}").format(str(last_exception))
 				)
-
-			self.secure_session(_session)
-
-			if self.use_oauth:
-				Oauth(_session, self.email_account, self.login, self.access_token).connect()
-
-			elif self.password:
-				res = _session.login(str(self.login or ""), str(self.password or ""))
-
-				# check if logged correctly
-				if res[0] != 235:
-					frappe.msgprint(res[1], raise_exception=frappe.OutgoingEmailError)
-
-			self._session = _session
-			self._enqueue_connection_closure()
-			return self._session
-
-		except smtplib.SMTPAuthenticationError:
-			self.throw_invalid_credentials_exception(email_account=self.email_account)
-
-		except (smtplib.SMTPServerDisconnected, smtplib.SMTPException) as e:
-			# SMTP connection errors - show warning but allow saving
-			# This allows users to save the form even if SMTP server is temporarily unavailable
-			frappe.msgprint(
-				_("Warning: Could not connect to SMTP server. {0}").format(str(e)),
-				indicator="orange",
-				title=_("SMTP Connection Warning")
-			)
-			# Log the error for debugging
-			frappe.log_error(
-				_("SMTP connection failed: {0}").format(str(e)),
-				"Email Account SMTP Validation"
-			)
-			# Return None to indicate validation failed but don't block save
-			return None
-
-		except OSError as e:
-			# Network/connection errors - show warning but allow saving
-			frappe.msgprint(
-				_("Warning: Could not connect to SMTP server. {0}").format(str(e)),
-				indicator="orange",
-				title=_("SMTP Connection Warning")
-			)
-			# Log the error for debugging
-			frappe.log_error(
-				_("SMTP connection failed: {0}").format(str(e)),
-				"Email Account SMTP Validation"
-			)
-			# Return None to indicate validation failed but don't block save
-			return None
-
-		except Exception as e:
-			# Catch any other unexpected exceptions - show warning but allow saving
-			frappe.msgprint(
-				_("Warning: SMTP validation encountered an error. {0}").format(str(e)),
-				indicator="orange",
-				title=_("SMTP Validation Warning")
-			)
-			# Log the error for debugging
-			frappe.log_error(
-				_("SMTP validation failed with unexpected error: {0}").format(str(e)),
-				"Email Account SMTP Validation"
-			)
-			# Return None to indicate validation failed but don't block save
-			return None
+			else:
+				frappe.log_error(
+					_("SMTP connection failed: {0}").format(str(last_exception)),
+					"Email Account SMTP Validation"
+				)
+				return None
+		
+		return None
 
 	def _enqueue_connection_closure(self):
 		if frappe.request and hasattr(frappe.request, "after_response"):
