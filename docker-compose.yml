@@ -1,0 +1,86 @@
+services:
+  mariadb:
+    image: mariadb:10.8
+    container_name: frappe-lms-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-vgiskill@2026#}
+      MYSQL_DATABASE: frappe
+      MYSQL_USER: frappe
+      MYSQL_PASSWORD: frappe
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-vgiskill@2026#}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - frappe-lms-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: frappe-lms-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - frappe-lms-network
+
+  frappe-lms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: frappe-lms-app
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_ROOT_USER=root
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-vgiskill@2026#}
+      - SITE_NAME=${SITE_NAME:-localhost}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - REDIS_CACHE=redis://redis:6379
+      - REDIS_QUEUE=redis://redis:6379
+      - REDIS_SOCKETIO=redis://redis:6379
+    volumes:
+      - frappe-sites:/home/frappe/frappe-bench/sites
+      - frappe-logs:/home/frappe/frappe-bench/logs
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    networks:
+      - frappe-lms-network
+    restart: unless-stopped
+
+volumes:
+  mariadb-data:
+    driver: local
+  redis-data:
+    driver: local
+  frappe-sites:
+    driver: local
+  frappe-logs:
+    driver: local
+
+networks:
+  frappe-lms-network:
+    driver: bridge
+

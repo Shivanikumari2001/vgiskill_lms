@@ -1,0 +1,92 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+
+# Scripts (keep only essential ones)
+*.sh
+!docker-entrypoint.sh
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.npm
+.yarn
+
+# Logs
+*.log
+logs/
+frappe-bench/logs/
+frappe-bench/**/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Frappe specific
+frappe-bench/sites/*/private/
+frappe-bench/sites/*/locks/
+frappe-bench/sites/*/logs/
+frappe-bench/sites/*/*.db
+frappe-bench/sites/*/*.rdb
+frappe-bench/config/pids/
+frappe-bench/config/*.pid
+frappe-bench/config/*.rdb
+frappe-bench/config/*.lock
+
+# Build artifacts (will be built in container)
+frappe-bench/sites/assets/
+
+# Helm charts
+helm-chart/
+
+# Kubernetes
+*.yaml
+*.yml
+!docker-compose.yml
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+.cache/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Coverage
+coverage/
+.nyc_output/
+

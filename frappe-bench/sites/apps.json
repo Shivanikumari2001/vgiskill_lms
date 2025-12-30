@@ -1,0 +1,31 @@
+{
+    "frappe": {
+        "resolution": {
+            "commit_hash": null,
+            "branch": "version-15"
+        },
+        "required": [],
+        "idx": 1,
+        "version": "15.93.0"
+    },
+    "lms": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "3dce1c0930b97a9b68e14fad6b25247ec681d28d",
+            "branch": "develop"
+        },
+        "required": [],
+        "idx": 2,
+        "version": "2.43.0"
+    },
+    "payments": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "1d2e5f2ee6da1924848a19148ed7f33611ad9d9f",
+            "branch": "develop"
+        },
+        "required": [],
+        "idx": 3,
+        "version": "0.0.1"
+    }
+}

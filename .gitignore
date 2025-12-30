@@ -1,0 +1,49 @@
+node_modules/
+npm-debug.log
+.env
+*.log
+.DS_Store
+*.bak
+helm-chart/lms-app/values.yaml.bak
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Frappe Framework - Exclude generated files but include source code
+# Exclude apps (they are separate Git repositories)
+frappe-bench/apps/frappe/
+frappe-bench/apps/lms/
+# Exclude virtual environment
+frappe-bench/env/
+# Exclude logs
+frappe-bench/logs/
+frappe-bench/**/*.log
+# Exclude node_modules
+frappe-bench/**/node_modules/
+# Exclude site-specific data and private files
+frappe-bench/sites/*/private/
+frappe-bench/sites/*/locks/
+frappe-bench/sites/*/logs/
+frappe-bench/sites/*/*.db
+frappe-bench/sites/*/*.rdb
+frappe-bench/sites/*/site_config.json
+# Exclude build artifacts
+frappe-bench/sites/assets/
+frappe-bench/config/*.lock
+frappe-bench/config/pids/
+frappe-bench/config/*.pid
+frappe-bench/config/*.rdb
+# Exclude yarn error logs
+frappe-bench/**/yarn-error.log
+
+frappe-bench/archived/
+frappe-bench/apps/payments/.git
