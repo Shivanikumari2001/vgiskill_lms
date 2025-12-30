@@ -74,6 +74,7 @@ from frappe.integrations.utils import (
 )
 from frappe.model.document import Document
 from frappe.utils import call_hook_method, cint, get_timestamp, get_url
+from requests.exceptions import HTTPError
 
 from payments.utils import create_payment_gateway
 
@@ -233,8 +234,29 @@ class RazorpaySettings(Document):
 						self.get_password(fieldname="api_secret", raise_exception=False),
 					),
 				)
-			except Exception:
-				frappe.throw(_("Seems API Key or API Secret is wrong !!!"))
+			except HTTPError as e:
+				# For 401 (Unauthorized) - wrong credentials, show warning but allow saving
+				# This allows users to save the form even if credentials need to be corrected later
+				if e.response.status_code == 401:
+					frappe.msgprint(
+						_("Warning: Razorpay API Key or API Secret appears to be incorrect. Please verify your credentials."),
+						indicator="orange",
+						title=_("Credential Validation Failed")
+					)
+				else:
+					# Log warning for other HTTP errors but allow saving
+					frappe.log_error(
+						_("Razorpay API validation failed with status {0}: {1}").format(
+							e.response.status_code, str(e)
+						),
+						"Razorpay Settings Validation Warning"
+					)
+			except Exception as e:
+				# For non-HTTP errors (network issues, timeouts, etc.), log warning but allow saving
+				frappe.log_error(
+					_("Razorpay API validation failed: {0}").format(str(e)),
+					"Razorpay Settings Validation Warning"
+				)
 
 	def validate_transaction_currency(self, currency):
 		if currency not in self.supported_currencies:
