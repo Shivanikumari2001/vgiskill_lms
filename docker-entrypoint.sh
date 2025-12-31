@@ -96,6 +96,67 @@ PYEOF
     fi
 }
 
+# Function to disable PWA install prompt
+disable_pwa_prompt() {
+    local site_name=$1
+    
+    echo -e "${YELLOW}Disabling PWA install prompt...${NC}"
+    cd /home/frappe/frappe-bench
+    
+    bench --site ${site_name} console << PYEOF 2>/dev/null || true
+import frappe
+try:
+    frappe.connect(site='${site_name}')
+    frappe.db.set_single_value('LMS Settings', 'disable_pwa', 1)
+    frappe.db.commit()
+    print('✅ PWA install prompt disabled')
+except Exception as e:
+    print(f'⚠️  Could not disable PWA: {e}')
+PYEOF
+}
+
+# Function to configure sidebar settings for mobile navigation
+configure_sidebar_settings() {
+    local site_name=$1
+    
+    echo -e "${YELLOW}Configuring sidebar settings for mobile navigation...${NC}"
+    cd /home/frappe/frappe-bench
+    
+    bench --site ${site_name} console << PYEOF 2>/dev/null || true
+import frappe
+try:
+    frappe.connect(site='${site_name}')
+    settings = frappe.get_single('LMS Settings')
+    
+    # Enable all sidebar items by default so navigation bar shows
+    sidebar_fields = [
+        'courses',
+        'batches', 
+        'certifications',
+        'jobs',
+        'statistics',
+        'notifications',
+        'programming_exercises'
+    ]
+    
+    changed = False
+    for field in sidebar_fields:
+        current_value = getattr(settings, field, None)
+        if current_value != 1:
+            setattr(settings, field, 1)
+            changed = True
+    
+    if changed:
+        settings.save(ignore_permissions=True)
+        frappe.db.commit()
+        print('✅ Sidebar settings configured - navigation bar will show')
+    else:
+        print('✅ Sidebar settings already configured')
+except Exception as e:
+    print(f'⚠️  Could not configure sidebar settings: {e}')
+PYEOF
+}
+
 # Function to configure site URL properly
 configure_site_url() {
     local site_name=$1
@@ -272,6 +333,10 @@ if [ ! -f "$SITE_CONFIG" ]; then
         echo -e "${YELLOW}Installing LMS app...${NC}"
         bench --site ${SITE_NAME} install-app lms 2>&1 || echo -e "${YELLOW}LMS app installation had warnings${NC}"
         
+        # Configure sidebar settings and disable PWA after LMS installation
+        configure_sidebar_settings ${SITE_NAME}
+        disable_pwa_prompt ${SITE_NAME}
+        
         echo -e "${YELLOW}Installing Payments app...${NC}"
         bench --site ${SITE_NAME} install-app payments 2>&1 || echo -e "${YELLOW}Payments app installation had warnings${NC}"
         
@@ -342,6 +407,10 @@ else
             echo -e "${YELLOW}Installing LMS app...${NC}"
             bench --site ${SITE_NAME} install-app lms 2>&1 || echo -e "${YELLOW}LMS app installation had warnings${NC}"
             
+            # Configure sidebar settings and disable PWA after LMS installation
+            configure_sidebar_settings ${SITE_NAME}
+            disable_pwa_prompt ${SITE_NAME}
+            
             echo -e "${YELLOW}Installing Payments app...${NC}"
             bench --site ${SITE_NAME} install-app payments 2>&1 || echo -e "${YELLOW}Payments app installation had warnings${NC}"
             
@@ -361,6 +430,13 @@ else
         if ! bench --site ${SITE_NAME} list-apps 2>/dev/null | grep -q lms; then
             echo -e "${YELLOW}Installing LMS app...${NC}"
             bench --site ${SITE_NAME} install-app lms 2>&1 || echo -e "${YELLOW}LMS app installation had warnings${NC}"
+            # Configure sidebar settings and disable PWA after LMS installation
+            configure_sidebar_settings ${SITE_NAME}
+            disable_pwa_prompt ${SITE_NAME}
+        else
+            # Ensure settings are configured even if LMS is already installed
+            configure_sidebar_settings ${SITE_NAME}
+            disable_pwa_prompt ${SITE_NAME}
         fi
         # Check if Payments is installed
         if ! bench --site ${SITE_NAME} list-apps 2>/dev/null | grep -q payments; then
@@ -378,6 +454,12 @@ if [ -f "sites/${SITE_NAME}/site_config.json" ]; then
     if [ ! -z "${SITE_URL}" ]; then
         configure_site_url ${SITE_NAME} "${SITE_URL}"
         echo -e "${GREEN}Site URL configured!${NC}"
+    fi
+    
+    # Ensure sidebar settings and PWA are configured (runs on every startup)
+    if bench --site ${SITE_NAME} list-apps 2>/dev/null | grep -q lms; then
+        configure_sidebar_settings ${SITE_NAME}
+        disable_pwa_prompt ${SITE_NAME}
     fi
 fi
 

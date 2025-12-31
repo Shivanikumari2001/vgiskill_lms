@@ -35,7 +35,11 @@ spec:
               service:
                 name: {{ include "lms-app.fullname" $ }}
                 port:
+                  {{- if eq .backendPort "socketio" }}
+                  number: {{ $.Values.service.socketioPort }}
+                  {{- else }}
                   number: {{ $.Values.service.port }}
+                  {{- end }}
           {{- end }}
     {{- end }}
 {{- end }}
