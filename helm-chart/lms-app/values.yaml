@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-prod/variphi/lms-app
+  repository: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-app
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -16,14 +16,23 @@ serviceAccount:
 
 podAnnotations: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
 
 service:
   type: ClusterIP
-  port: 80
-  targetPort: 8080
+  port: 8000
+  targetPort: 8000
+  socketioPort: 9000
 
 ingress:
   enabled: true
@@ -31,8 +40,8 @@ ingress:
   annotations:
     kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.global-static-ip-name: "lms-ingress-ip"
-    networking.gke.io/managed-certificates: "variphi-lms-cert"
-    kubernetes.io/ingress.allow-http: "true"
+    ingress.gcp.kubernetes.io/pre-shared-cert: "mcrt-71298f60-a102-44b4-ae9f-40dc28d1462c"
+    kubernetes.io/ingress.allow-http: "false"
   hosts:
     - host: vgiskill.ai
       paths:
@@ -42,11 +51,11 @@ ingress:
 
 resources:
   limits:
-    cpu: 500m
-    memory: 512Mi
+    cpu: 2000m
+    memory: 8Gi
   requests:
-    cpu: 250m
-    memory: 256Mi
+    cpu: 1000m
+    memory: 4Gi
 
 nodeSelector:
   cloud.google.com/gke-nodepool: gke-prod-asia-south1-np-app-prod
@@ -69,8 +78,33 @@ db:
   user: "vgi_skill"
   password: "vgiskill@2026"
   name: "lms_db"
+  rootUser: "root"
+  rootPassword: "vgiskill@2026#"
+
+# Redis Configuration
+redis:
+  cache: "redis://redis:6379"
+  queue: "redis://redis:6379"
+  socketio: "redis://redis:6379"
 
 # Application Configuration
 app:
-  port: 8080
+  port: 8000
+  socketioPort: 9000
+  siteName: "vgiskill.ai"
+  siteUrl: "https://vgiskill.ai"
+  adminPassword: "admin"
+
+# Persistent Volumes
+persistence:
+  sites:
+    enabled: true
+    storageClass: "standard-rwo"
+    size: 20Gi
+    accessMode: ReadWriteOnce
+  logs:
+    enabled: true
+    storageClass: "standard-rwo"
+    size: 5Gi
+    accessMode: ReadWriteOnce
 

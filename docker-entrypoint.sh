@@ -96,12 +96,120 @@ PYEOF
     fi
 }
 
+# Function to configure site URL properly
+configure_site_url() {
+    local site_name=$1
+    local site_url=$2
+    
+    if [ -z "$site_url" ]; then
+        return
+    fi
+    
+    echo -e "${YELLOW}Configuring site URL: ${site_url}${NC}"
+    cd /home/frappe/frappe-bench
+    
+    # Parse the URL to extract domain and protocol
+    python3 << PYEOF
+import json
+import re
+import os
+
+site_name = "$site_name"
+site_url = "$site_url"
+
+# Ensure URL has protocol
+if not site_url.startswith(('http://', 'https://')):
+    site_url = 'https://' + site_url
+
+# Determine if SSL should be used
+use_ssl = site_url.startswith('https://')
+
+# Set host_name to the full URL with protocol (Frappe will use this directly)
+# This ensures URLs are generated correctly without port numbers
+print(f"Setting host_name to full URL: {site_url}")
+os.system(f'bench --site {site_name} set-config host_name "{site_url}" 2>&1')
+
+# Set use_ssl based on protocol
+if use_ssl:
+    print("Setting use_ssl to True")
+    os.system(f'bench --site {site_name} set-config use_ssl 1 2>&1')
+else:
+    print("Setting use_ssl to False")
+    os.system(f'bench --site {site_name} set-config use_ssl 0 2>&1')
+
+# Remove webserver_port from site config to prevent port from being added to URLs
+# This is important for production sites behind reverse proxies
+print("Removing webserver_port from site config")
+os.system(f'bench --site {site_name} set-config webserver_port "" 2>&1')
+
+# Clear cache to ensure new settings are picked up
+print("Clearing cache")
+os.system(f'bench --site {site_name} clear-cache 2>&1')
+
+print(f"✅ Site URL configured: {site_url} (use_ssl={use_ssl}, port excluded)")
+PYEOF
+}
+
 # Function to check if database is initialized
 check_db_initialized() {
     local site_name=$1
     cd /home/frappe/frappe-bench
     bench --site ${site_name} mariadb -e "SHOW TABLES LIKE 'tabUser';" 2>/dev/null | grep -q tabUser
 }
+
+# Function to check if assets exist
+assets_exist() {
+    local app_name=$1
+    local bench_path="/home/frappe/frappe-bench"
+    if [ "$app_name" = "frappe" ]; then
+        [ -d "${bench_path}/sites/assets/frappe" ] && [ "$(ls -A ${bench_path}/sites/assets/frappe 2>/dev/null)" ]
+    elif [ "$app_name" = "lms" ]; then
+        [ -d "${bench_path}/sites/assets/lms/frontend/assets" ] && [ "$(ls -A ${bench_path}/sites/assets/lms/frontend/assets 2>/dev/null)" ]
+    elif [ "$app_name" = "payments" ]; then
+        [ -d "${bench_path}/sites/assets/payments" ] && [ "$(ls -A ${bench_path}/sites/assets/payments 2>/dev/null)" ]
+    else
+        false
+    fi
+}
+
+# Function to build assets only if they don't exist (to save memory)
+build_assets_if_needed() {
+    cd /home/frappe/frappe-bench
+    
+    # Build Frappe assets if missing
+    if ! assets_exist "frappe"; then
+        echo -e "${YELLOW}Building Frappe assets...${NC}"
+        cd apps/frappe && yarn build 2>&1 || echo -e "${YELLOW}Frappe asset build had warnings${NC}"
+        cd /home/frappe/frappe-bench
+    else
+        echo -e "${GREEN}Frappe assets already exist, skipping build${NC}"
+    fi
+    
+    # Build LMS assets if missing
+    if ! assets_exist "lms"; then
+        echo -e "${YELLOW}Building LMS assets...${NC}"
+        cd apps/lms && yarn build 2>&1 || echo -e "${YELLOW}LMS asset build had warnings${NC}"
+        cd /home/frappe/frappe-bench
+    else
+        echo -e "${GREEN}LMS assets already exist, skipping build${NC}"
+    fi
+    
+    # Build Payments assets if missing
+    if ! assets_exist "payments"; then
+        echo -e "${YELLOW}Building Payments assets...${NC}"
+        cd apps/payments && (yarn build 2>&1 || echo -e "${YELLOW}Payments asset build had warnings${NC}") || echo "Payments has no build script"
+        cd /home/frappe/frappe-bench
+    else
+        echo -e "${GREEN}Payments assets already exist, skipping build${NC}"
+    fi
+}
+
+# Ensure apps.txt exists in sites directory
+if [ ! -f "sites/apps.txt" ]; then
+    echo -e "${YELLOW}Creating apps.txt...${NC}"
+    echo -e "frappe\nlms\npayments" > sites/apps.txt
+    echo -e "${GREEN}apps.txt created!${NC}"
+fi
 
 # Check if site exists and is properly initialized
 SITE_CONFIG="sites/${SITE_NAME}/site_config.json"
@@ -155,16 +263,20 @@ if [ ! -f "$SITE_CONFIG" ]; then
     # If site was created or initialized, install LMS and Payments
     if [ "$SITE_CREATED" = true ] || check_db_initialized ${SITE_NAME}; then
         cd /home/frappe/frappe-bench
+        
+        # Set site URL if provided
+        if [ ! -z "${SITE_URL}" ]; then
+            configure_site_url ${SITE_NAME} "${SITE_URL}"
+        fi
+        
         echo -e "${YELLOW}Installing LMS app...${NC}"
         bench --site ${SITE_NAME} install-app lms 2>&1 || echo -e "${YELLOW}LMS app installation had warnings${NC}"
         
         echo -e "${YELLOW}Installing Payments app...${NC}"
         bench --site ${SITE_NAME} install-app payments 2>&1 || echo -e "${YELLOW}Payments app installation had warnings${NC}"
         
-        echo -e "${YELLOW}Building assets...${NC}"
-        cd /home/frappe/frappe-bench/apps/lms && yarn build 2>&1 || echo -e "${YELLOW}LMS build completed with warnings${NC}"
-        cd /home/frappe/frappe-bench/apps/payments && (yarn build 2>&1 || echo -e "${YELLOW}Payments build completed with warnings${NC}") || echo "Payments has no build script"
-        cd /home/frappe/frappe-bench
+        # Build assets only if needed (saves memory)
+        build_assets_if_needed
         
         echo -e "${GREEN}Site setup complete!${NC}"
     else
@@ -221,20 +333,30 @@ else
         # Install LMS and Payments if database is now initialized
         if check_db_initialized ${SITE_NAME}; then
             cd /home/frappe/frappe-bench
+            
+            # Set site URL if provided
+            if [ ! -z "${SITE_URL}" ]; then
+                configure_site_url ${SITE_NAME} "${SITE_URL}"
+            fi
+            
             echo -e "${YELLOW}Installing LMS app...${NC}"
             bench --site ${SITE_NAME} install-app lms 2>&1 || echo -e "${YELLOW}LMS app installation had warnings${NC}"
             
             echo -e "${YELLOW}Installing Payments app...${NC}"
             bench --site ${SITE_NAME} install-app payments 2>&1 || echo -e "${YELLOW}Payments app installation had warnings${NC}"
             
-            echo -e "${YELLOW}Building assets...${NC}"
-            cd /home/frappe/frappe-bench/apps/lms && yarn build 2>&1 || echo -e "${YELLOW}LMS build completed with warnings${NC}"
-            cd /home/frappe/frappe-bench/apps/payments && (yarn build 2>&1 || echo -e "${YELLOW}Payments build completed with warnings${NC}") || echo "Payments has no build script"
-            cd /home/frappe/frappe-bench
+            # Build assets only if needed (saves memory)
+            build_assets_if_needed
         fi
     else
         echo -e "${GREEN}Database is properly initialized.${NC}"
         cd /home/frappe/frappe-bench
+        
+        # Set site URL if provided
+        if [ ! -z "${SITE_URL}" ]; then
+            configure_site_url ${SITE_NAME} "${SITE_URL}"
+        fi
+        
         # Check if LMS is installed
         if ! bench --site ${SITE_NAME} list-apps 2>/dev/null | grep -q lms; then
             echo -e "${YELLOW}Installing LMS app...${NC}"
@@ -251,15 +373,16 @@ fi
 # Update site configuration if needed
 if [ -f "sites/${SITE_NAME}/site_config.json" ]; then
     echo -e "${GREEN}Site configuration found.${NC}"
+    
+    # Set site URL (host_name) if SITE_URL is provided
+    if [ ! -z "${SITE_URL}" ]; then
+        configure_site_url ${SITE_NAME} "${SITE_URL}"
+        echo -e "${GREEN}Site URL configured!${NC}"
+    fi
 fi
 
-# Build assets to ensure login page CSS/JS are available
-echo -e "${YELLOW}Building assets...${NC}"
-cd /home/frappe/frappe-bench
-cd apps/frappe && yarn build 2>&1 || echo -e "${YELLOW}Frappe asset build had warnings${NC}"
-cd /home/frappe/frappe-bench/apps/lms && yarn build 2>&1 || echo -e "${YELLOW}LMS asset build had warnings${NC}"
-cd /home/frappe/frappe-bench/apps/payments && (yarn build 2>&1 || echo -e "${YELLOW}Payments asset build had warnings${NC}") || echo "Payments has no build script"
-cd /home/frappe/frappe-bench
+# Build assets only if needed (saves memory - assets are already built in Docker image)
+build_assets_if_needed
 
 # Clear cache
 echo -e "${YELLOW}Clearing cache...${NC}"

@@ -11,6 +11,10 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: {{ .Values.service.socketioPort }}
+      targetPort: socketio
+      protocol: TCP
+      name: socketio
   selector:
     {{- include "lms-app.selectorLabels" . | nindent 4 }}
 
