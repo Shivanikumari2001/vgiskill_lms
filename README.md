@@ -1,6 +1,6 @@
 <div align="center">
 
-![VariPhi Logo](variphi-logo.png)
+<img src="variphi-logo.png" alt="VariPhi Logo" width="150">
 
 # VGISkill LMS Application
 
