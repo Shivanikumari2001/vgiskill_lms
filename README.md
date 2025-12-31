@@ -1,35 +1,81 @@
-# VariPhi LMS Application
+<div align="center">
 
-A comprehensive Learning Management System built on Frappe Framework v15, featuring both local development setup and production deployment capabilities for GKE.
+![VariPhi Logo](variphi-logo.png)
 
-## Table of Contents
+# VGISkill LMS Application
+
+**A comprehensive Learning Management System built on Frappe Framework v15**
+
+[![Frappe](https://img.shields.io/badge/Frappe-v15.93.0-blue)](https://frappeframework.com)
+[![Python](https://img.shields.io/badge/Python-3.13-blue)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20-green)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
+[Features](#features) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Deployment](#production-deployment-gke)
+
+</div>
+
+---
+
+## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
 - [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
 - [Local Development Setup](#local-development-setup)
 - [Docker Setup](#docker-setup)
 - [Production Deployment (GKE)](#production-deployment-gke)
 - [Project Structure](#project-structure)
 - [Useful Commands](#useful-commands)
 - [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Overview
+## 🎯 Overview
 
-This project provides:
-- **Local Development**: Frappe Framework v15.93.0 with Frappe LMS app
-- **Docker Support**: Complete containerized setup with Docker Compose
-- **Production Deployment**: Helm-based Kubernetes deployment for GKE
+VGISkill LMS is a modern, scalable Learning Management System built on the Frappe Framework v15. This application provides a complete solution for managing online courses, student enrollments, assessments, and payments - all in one integrated platform.
 
-### Technology Stack
+### Key Highlights
 
-- **Framework**: Frappe Framework v15.93.0 (version-15 branch)
-- **Python**: 3.13 (required for Frappe v15)
-- **Node.js**: 20
-- **Database**: MariaDB 10.8
-- **Cache/Queue**: Redis 7
-- **Apps**: Frappe LMS, Payments
+- ✅ **Full-featured LMS**: Course management, student tracking, assessments, and certifications
+- ✅ **Payment Integration**: Built-in payment gateway support (Razorpay, Stripe, PayPal, and more)
+- ✅ **Docker Ready**: Complete containerized setup for easy deployment
+- ✅ **Production Ready**: Helm charts for Kubernetes deployment on GKE
+- ✅ **Modern Stack**: Built on Frappe Framework v15 with Python 3.13 and Node.js 20
 
-## Prerequisites
+## ✨ Features
+
+- 📚 **Course Management**: Create and manage courses, lessons, and content
+- 👥 **Student Management**: Track student progress, enrollments, and achievements
+- 💳 **Payment Processing**: Integrated payment gateways for course purchases
+- 📊 **Analytics**: Track course performance and student engagement
+- 🎓 **Certifications**: Issue certificates upon course completion
+- 🔐 **Security**: Built-in authentication and authorization
+- 📱 **Responsive Design**: Mobile-friendly interface
+- 🌐 **Multi-tenant**: Support for multiple sites and organizations
+
+## 🛠 Technology Stack
+
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| **Framework** | Frappe Framework | v15.93.0 |
+| **Python** | Python | 3.13 |
+| **Node.js** | Node.js | 20 |
+| **Database** | MariaDB | 10.8 |
+| **Cache/Queue** | Redis | 7 |
+| **Container** | Docker | 20.10+ |
+| **Orchestration** | Kubernetes (GKE) | - |
+| **Package Manager** | Helm | 3.x |
+
+### Installed Apps
+
+- **Frappe**: Core framework
+- **LMS**: Learning Management System app
+- **Payments**: Payment gateway integration app
+
+## 📦 Prerequisites
 
 ### For Local Development
 
@@ -53,81 +99,97 @@ This project provides:
 - Access to GKE cluster: `gke-prod-asia-south1`
 - Access to GCP Container Registry or Artifact Registry
 
-## Local Development Setup
+## 🚀 Quick Start
 
-### Initial Setup
+### Option 1: Docker (Recommended for Quick Testing)
 
-1. **Install system dependencies** (if not already installed):
-   ```bash
-   # Install Python 3.13 (if needed)
-   brew install python@3.13
-   
-   # Install Node.js 20 via NVM
-   nvm install 20
-   nvm use 20
-   
-   # Install MariaDB and Redis
-   brew install mariadb redis
-   brew services start mariadb
-   brew services start redis
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/shivamskr151/vgiskill_lms_app.git
+cd vgiskill_lab_lms
 
-2. **Complete the Frappe setup** (requires MariaDB root password):
-   ```bash
-   ./complete-frappe-setup.sh
-   ```
-   
-   Or manually:
-   ```bash
-   cd frappe-bench
-   source ~/.nvm/nvm.sh && nvm use 20
-   
-   # Drop existing site (if needed)
-   bench drop-site localhost --force --db-root-password YOUR_ROOT_PASSWORD
-   
-   # Create new site
-   bench new-site localhost \
-       --admin-password admin \
-       --mariadb-user-host-login-scope='%' \
-       --set-default \
-       --db-root-password YOUR_ROOT_PASSWORD
-   
-   # Install LMS app
-   bench --site localhost install-app lms
-   ```
+# Start all services
+docker-compose up -d --build
 
-3. **Start the development server**:
-   ```bash
-   cd frappe-bench
-   source ~/.nvm/nvm.sh && nvm use 20
-   bench start
-   ```
-
-4. **Access the application**:
-   - URL: http://localhost:8000
-   - Username: `Administrator`
-   - Password: `admin` (or the password you set during setup)
-
-### Project Structure
-
-```
-vgiskill_lab_lms/
-├── frappe-bench/              # Frappe bench (local development)
-│   ├── apps/
-│   │   ├── frappe/           # Frappe Framework v15.93.0
-│   │   ├── lms/              # Frappe LMS App
-│   │   └── payments/         # Payments App
-│   ├── sites/
-│   │   └── localhost/        # Your site
-│   ├── env/                  # Python virtual environment
-│   └── config/               # Bench configuration
-├── helm-chart/               # Kubernetes deployment configs
-├── docker-compose.yml        # Docker Compose configuration
-├── Dockerfile                # Docker image definition
-└── README.md                 # This file
+# Access the application
+# URL: http://localhost:8000
+# Username: Administrator
+# Password: admin
 ```
 
-## Docker Setup
+### Option 2: Local Development
+
+```bash
+# Complete the Frappe setup
+./complete-frappe-setup.sh
+
+# Start the development server
+cd frappe-bench
+source ~/.nvm/nvm.sh && nvm use 20
+bench start
+```
+
+## 💻 Local Development Setup
+
+### Step 1: Install System Dependencies
+
+```bash
+# Install Python 3.13 (macOS)
+brew install python@3.13
+
+# Install Node.js 20 via NVM
+nvm install 20
+nvm use 20
+
+# Install MariaDB and Redis
+brew install mariadb redis
+brew services start mariadb
+brew services start redis
+```
+
+### Step 2: Complete Frappe Setup
+
+Run the automated setup script:
+
+```bash
+./complete-frappe-setup.sh
+```
+
+Or manually:
+
+```bash
+cd frappe-bench
+source ~/.nvm/nvm.sh && nvm use 20
+
+# Drop existing site (if needed)
+bench drop-site localhost --force --db-root-password YOUR_ROOT_PASSWORD
+
+# Create new site
+bench new-site localhost \
+    --admin-password admin \
+    --mariadb-user-host-login-scope='%' \
+    --set-default \
+    --db-root-password YOUR_ROOT_PASSWORD
+
+# Install LMS app
+bench --site localhost install-app lms
+```
+
+### Step 3: Start Development Server
+
+```bash
+cd frappe-bench
+source ~/.nvm/nvm.sh && nvm use 20
+bench start
+```
+
+### Step 4: Access the Application
+
+- **URL**: http://localhost:8000
+- **Username**: `Administrator`
+- **Password**: `admin` (or the password you set during setup)
+
+## 🐳 Docker Setup
 
 ### Quick Start with Docker Compose
 
@@ -194,7 +256,7 @@ Docker Compose uses named volumes for data persistence:
 - `frappe-sites`: Frappe site data and files
 - `frappe-logs`: Application logs
 
-## Production Deployment (GKE)
+## ☁️ Production Deployment (GKE)
 
 ### Architecture
 
@@ -314,7 +376,32 @@ kubectl apply -f managed-certificate.yaml
 3. Access the application:
    - Once DNS is configured and SSL certificate is active, visit: https://vgiskill.ai
 
-## Useful Commands
+## 📁 Project Structure
+
+```
+vgiskill_lab_lms/
+├── frappe-bench/              # Frappe bench (local development)
+│   ├── apps/
+│   │   ├── frappe/           # Frappe Framework v15.93.0
+│   │   ├── lms/              # Frappe LMS App
+│   │   └── payments/         # Payments App
+│   ├── sites/
+│   │   └── localhost/        # Your site
+│   ├── env/                  # Python virtual environment
+│   └── config/               # Bench configuration
+├── helm-chart/               # Kubernetes deployment configs
+│   └── lms-app/              # Helm chart for LMS application
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/         # Kubernetes templates
+├── docker-compose.yml        # Docker Compose configuration
+├── Dockerfile                # Docker image definition
+├── docker-entrypoint.sh      # Docker entrypoint script
+├── variphi-logo.png          # VariPhi logo
+└── README.md                 # This file
+```
+
+## 🔧 Useful Commands
 
 ### Local Development
 
@@ -365,7 +452,23 @@ docker-compose exec frappe-lms bash
 docker-compose exec frappe-lms bench --site localhost migrate
 ```
 
-## Troubleshooting
+### Production (Kubernetes)
+
+```bash
+# Check pod status
+kubectl get pods -l app.kubernetes.io/name=lms-app
+
+# View logs
+kubectl logs -l app.kubernetes.io/name=lms-app -f
+
+# Execute commands in pod
+kubectl exec -it <pod-name> -- bash
+
+# Scale deployment
+kubectl scale deployment lms-app --replicas=3
+```
+
+## 🐛 Troubleshooting
 
 ### Local Development Issues
 
@@ -456,16 +559,36 @@ ports:
 3. **Ingress not working**: Check ingress status and managed certificate status
 4. **DNS not resolving**: Verify DNS configuration points to GCLB IP
 
-## Additional Resources
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📚 Additional Resources
 
 - [Frappe Framework Documentation](https://docs.frappe.io/framework)
 - [Frappe LMS GitHub](https://github.com/frappe/lms)
 - [Bench CLI Documentation](https://github.com/frappe/bench)
+- [Docker Documentation](https://docs.docker.com/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
 
-## License
+## 📄 License
 
 This project is built on Frappe Framework, which is licensed under MIT.
 
 ---
 
-**Powered by VariPhi**
+<div align="center">
+
+**Built with ❤️ by [VariPhi](https://variphi.com)**
+
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=flat&logo=github)](https://github.com/shivamskr151/vgiskill_lms_app)
+[![Issues](https://img.shields.io/github/issues/shivamskr151/vgiskill_lms_app)](https://github.com/shivamskr151/vgiskill_lms_app/issues)
+[![Stars](https://img.shields.io/github/stars/shivamskr151/vgiskill_lms_app)](https://github.com/shivamskr151/vgiskill_lms_app/stargazers)
+
+</div>
