@@ -54,6 +54,8 @@ spec:
                   key: rootPassword
             - name: SITE_NAME
               value: "{{ .Values.app.siteName }}"
+            - name: SITE_URL
+              value: "{{ .Values.app.siteUrl }}"
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
