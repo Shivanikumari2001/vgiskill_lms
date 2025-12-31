@@ -45,8 +45,12 @@ ingress:
   hosts:
     - host: vgiskill.ai
       paths:
+        - path: /socket.io
+          pathType: Prefix
+          backendPort: socketio
         - path: /
           pathType: Prefix
+          backendPort: http
   tls: []
 
 resources:
