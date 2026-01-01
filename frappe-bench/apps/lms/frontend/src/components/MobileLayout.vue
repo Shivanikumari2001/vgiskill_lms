@@ -24,10 +24,10 @@
 			</div>
 		</div>
 
-		<!-- Fixed menu with all 7 icons -->
+		<!-- Fixed menu with all 7 icons - Always visible -->
 		<div
 			class="fixed bottom-0 left-0 right-0 w-full flex items-center justify-around border-t border-outline-gray-2 bg-surface-white standalone:pb-4 z-50 shadow-lg"
-			style="min-height: 60px;"
+			style="min-height: 60px; display: flex !important; visibility: visible !important;"
 		>
 			<button
 				v-for="tab in footerLinks"
@@ -113,12 +113,19 @@ const footerLinks = ref([
 ])
 
 onMounted(() => {
+	// Ensure footer links are always initialized
+	addOtherLinks()
+	
 	sidebarSettings.reload(
 		{},
 		{
 			onSuccess(data) {
 				filterLinksToShow(data)
 				addOtherLinks()
+			},
+			onError() {
+				// If settings fail to load, still show footer menu
+				console.warn('Sidebar settings failed to load, footer menu will still be visible')
 			},
 		}
 	)

@@ -139,17 +139,23 @@ WORKDIR ${BENCH_PATH}
 # Create sites/assets directory structure
 RUN mkdir -p sites/assets
 
-# Build assets using each app's build scripts
-# Note: Assets will be built at runtime if not available here
-# Frappe uses esbuild - this builds to sites/assets/frappe
-RUN cd apps/frappe && yarn build 2>&1 || echo "Frappe build completed with warnings"
+# Build assets using yarn build, then copy to sites/assets/ (Frappe's expected location)
+# Frappe assets
+RUN cd apps/frappe && yarn build 2>&1 || echo "Frappe build completed with warnings" && \
+    mkdir -p ../sites/assets/frappe && \
+    cp -r frappe/public/* ../sites/assets/frappe/ 2>/dev/null || true
 
-# LMS uses frontend build - this builds to sites/assets/lms  
-RUN cd apps/lms && yarn build 2>&1 || echo "LMS build completed with warnings"
+# LMS assets (includes frontend build)
+RUN cd apps/lms && yarn build 2>&1 || echo "LMS build completed with warnings" && \
+    mkdir -p ../sites/assets/lms/frontend && \
+    cp -r lms/public/frontend/* ../sites/assets/lms/frontend/ 2>/dev/null || true && \
+    echo "LMS assets copied to sites/assets/lms/frontend/"
 
-# Payments may not have a build script, skip if not present
+# Payments assets (if build script exists)
 RUN if [ -f "apps/payments/package.json" ] && grep -q '"build"' apps/payments/package.json; then \
-        cd apps/payments && yarn build 2>&1 || echo "Payments build completed with warnings"; \
+        cd apps/payments && yarn build 2>&1 || echo "Payments build completed with warnings" && \
+        mkdir -p ../sites/assets/payments && \
+        cp -r payments/public/* ../sites/assets/payments/ 2>/dev/null || true; \
     else \
         echo "Payments has no build script, skipping"; \
     fi
