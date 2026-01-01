@@ -251,6 +251,13 @@ build_assets_if_needed() {
         echo -e "${YELLOW}Building LMS assets...${NC}"
         cd apps/lms && yarn build 2>&1 || echo -e "${YELLOW}LMS asset build had warnings${NC}"
         cd /home/frappe/frappe-bench
+        # Copy built assets to sites/assets/ (Frappe's expected location)
+        if [ -d "apps/lms/lms/public/frontend" ]; then
+            echo -e "${YELLOW}Copying LMS assets to sites/assets/...${NC}"
+            mkdir -p sites/assets/lms/frontend
+            cp -r apps/lms/lms/public/frontend/* sites/assets/lms/frontend/ 2>/dev/null || true
+            echo -e "${GREEN}LMS assets copied to sites/assets/lms/frontend/${NC}"
+        fi
     else
         echo -e "${GREEN}LMS assets already exist, skipping build${NC}"
     fi
