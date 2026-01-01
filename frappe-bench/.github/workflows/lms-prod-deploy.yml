@@ -1,0 +1,69 @@
+name: LMS Production CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: variphi
+      REGION: asia-south1
+      IMAGE_REPO: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-app
+      HELM_CHART_PATH: helm-chart/lms-app
+      RELEASE_NAME: lms-app
+      NAMESPACE: lms
+
+    steps:
+      # 1️⃣ Code checkout
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2️⃣ GCP Authentication
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # 3️⃣ Setup gcloud
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      # 4️⃣ Configure Docker for Artifact Registry
+      - name: Configure Docker auth
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      # 5️⃣ Build Docker Image
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE_REPO }}:${{ github.sha }} \
+            .
+
+      # 6️⃣ Push Docker Image
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.IMAGE_REPO }}:${{ github.sha }}
+
+      # 7️⃣ Get GKE credentials
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials \
+            gke-prod-asia-south1 \
+            --region asia-south1
+
+      # 8️⃣ Helm Deploy
+      - name: Deploy to GKE using Helm
+        run: |
+          helm upgrade --install ${{ env.RELEASE_NAME }} \
+            ${{ env.HELM_CHART_PATH }} \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            --set image.repository=${{ env.IMAGE_REPO }} \
+            --set image.tag=${{ github.sha }}
