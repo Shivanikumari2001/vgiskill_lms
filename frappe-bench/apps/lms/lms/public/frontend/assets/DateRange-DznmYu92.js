@@ -1,2 +1,0 @@
-import{a as s,o as r,f as n,e as o,u as t,C as c,t as p,bB as i}from"./index-C4szjxrb.js";const l={class:"flex items-center text-ink-gray-7"},g={__name:"DateRange",props:{startDate:{type:String},endDate:{type:String}},setup(a){const e=a;return(_,d)=>(r(),s("div",l,[n(t(c),{class:"h-4 w-4 stroke-1.5 mr-2"}),o("span",null,p(t(i)(e.startDate,e.endDate)),1)]))}};export{g as _};
-//# sourceMappingURL=DateRange-DznmYu92.js.map

@@ -1,55 +1,46 @@
 <template>
 	<div class="flex h-full flex-col relative">
-		<div class="h-full pb-10" id="scrollContainer">
+		<div class="h-full pb-20" id="scrollContainer">
 			<slot />
 		</div>
 
-		<div class="relative z-20">
-			<!-- Dropdown menu -->
+		<!-- Dropdown menu -->
+		<div
+			class="fixed bottom-16 right-2 w-[80%] rounded-md bg-surface-white text-base p-5 space-y-4 shadow-md z-40"
+			v-if="showMenu"
+			ref="menu"
+		>
 			<div
-				class="fixed bottom-16 right-2 w-[80%] rounded-md bg-surface-white text-base p-5 space-y-4 shadow-md"
-				v-if="showMenu"
-				ref="menu"
+				v-for="link in otherLinks"
+				:key="link.label"
+				class="flex items-center space-x-2 cursor-pointer"
+				@click="handleClick(link)"
 			>
-				<div
-					v-for="link in otherLinks"
-					:key="link.label"
-					class="flex items-center space-x-2 cursor-pointer"
-					@click="handleClick(link)"
-				>
-					<component
-						:is="icons[link.icon]"
-						class="h-4 w-4 stroke-1.5 text-ink-gray-5"
-					/>
-					<div>{{ link.label }}</div>
-				</div>
+				<component
+					:is="icons[link.icon]"
+					class="h-4 w-4 stroke-1.5 text-ink-gray-5"
+				/>
+				<div>{{ link.label }}</div>
 			</div>
+		</div>
 
-			<!-- Fixed menu -->
-			<div
-				v-if="sidebarSettings.data"
-				class="fixed bottom-0 left-0 w-full flex items-center justify-around border-t border-outline-gray-2 bg-surface-white standalone:pb-4 z-10"
+		<!-- Fixed menu with all 7 icons -->
+		<div
+			class="fixed bottom-0 left-0 right-0 w-full flex items-center justify-around border-t border-outline-gray-2 bg-surface-white standalone:pb-4 z-50 shadow-lg"
+			style="min-height: 60px;"
+		>
+			<button
+				v-for="tab in footerLinks"
+				:key="tab.label"
+				class="flex flex-col items-center justify-center py-3 px-2 transition active:scale-95 flex-1"
+				@click="handleFooterClick(tab)"
 			>
-				<button
-					v-for="tab in sidebarLinks"
-					:key="tab.label"
-					:class="isVisible(tab) ? 'block' : 'hidden'"
-					class="flex flex-col items-center justify-center py-3 transition active:scale-95"
-					@click="handleClick(tab)"
-				>
-					<component
-						:is="icons[tab.icon]"
-						class="h-6 w-6 stroke-1.5"
-						:class="[isActive(tab) ? 'text-ink-gray-9' : 'text-ink-gray-5']"
-					/>
-				</button>
-				<button @click="toggleMenu">
-					<component
-						:is="icons['List']"
-						class="h-6 w-6 stroke-1.5 text-ink-gray-5"
-					/>
-				</button>
-			</div>
+				<component
+					:is="icons[tab.icon]"
+					class="h-6 w-6 stroke-1.5"
+					:class="[isActive(tab) ? 'text-ink-gray-9' : 'text-ink-gray-5']"
+				/>
+			</button>
 		</div>
 	</div>
 </template>
@@ -65,7 +56,7 @@ import * as icons from 'lucide-vue-next'
 
 const { logout, user } = sessionStore()
 let { isLoggedIn } = sessionStore()
-const { sidebarSettings } = useSettings()
+const { sidebarSettings, settings } = useSettings()
 const router = useRouter()
 let { userResource } = usersStore()
 const sidebarLinks = ref(getSidebarLinks())
@@ -74,6 +65,52 @@ const showMenu = ref(false)
 const menu = ref(null)
 const isModerator = ref(false)
 const isInstructor = ref(false)
+
+// Fixed footer links with all 7 icons
+const footerLinks = ref([
+	{
+		label: 'Courses',
+		icon: 'BookOpen',
+		to: 'Courses',
+		activeFor: ['Courses', 'CourseDetail', 'Lesson', 'CourseForm', 'LessonForm'],
+	},
+	{
+		label: 'Batches',
+		icon: 'Users',
+		to: 'Batches',
+		activeFor: ['Batches', 'BatchDetail', 'Batch', 'BatchForm'],
+	},
+	{
+		label: 'Certifications',
+		icon: 'GraduationCap',
+		to: 'CertifiedParticipants',
+		activeFor: ['CertifiedParticipants'],
+	},
+	{
+		label: 'Jobs',
+		icon: 'Briefcase',
+		to: 'Jobs',
+		activeFor: ['Jobs', 'JobDetail'],
+	},
+	{
+		label: 'Statistics',
+		icon: 'TrendingUp',
+		to: 'Statistics',
+		activeFor: ['Statistics'],
+	},
+	{
+		label: 'Contact Us',
+		icon: 'Mail',
+		to: null, // Will be set based on settings
+		isContactUs: true,
+	},
+	{
+		label: 'Menu',
+		icon: 'List',
+		to: null,
+		isMenu: true,
+	},
+])
 
 onMounted(() => {
 	sidebarSettings.reload(
@@ -85,6 +122,8 @@ onMounted(() => {
 			},
 		}
 	)
+	// Load settings for Contact Us
+	settings.reload()
 })
 
 const handleOutsideClick = (e) => {
@@ -196,6 +235,7 @@ const checkIfCanAddProgram = async () => {
 }
 
 let isActive = (tab) => {
+	if (tab.isMenu || tab.isContactUs) return false
 	return tab.activeFor?.includes(router.currentRoute.value.name)
 }
 
@@ -213,6 +253,27 @@ const handleClick = (tab) => {
 			},
 		})
 	else router.push({ name: tab.to })
+}
+
+const handleFooterClick = (tab) => {
+	if (tab.isMenu) {
+		toggleMenu()
+		return
+	}
+	if (tab.isContactUs) {
+		// Handle Contact Us - can be URL or email
+		const contactUrl = settings.data?.contact_us_url
+		const contactEmail = settings.data?.contact_us_email
+		if (contactUrl) {
+			window.open(contactUrl, '_blank')
+		} else if (contactEmail) {
+			window.location.href = `mailto:${contactEmail}`
+		}
+		return
+	}
+	if (tab.to) {
+		router.push({ name: tab.to })
+	}
 }
 
 const isVisible = (tab) => {
