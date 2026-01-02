@@ -1,4 +1,4 @@
-name: LMS Production CI/CD
+name: Build & Deploy LMS to GKE
 
 on:
   push:
@@ -9,21 +9,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    env:
-      PROJECT_ID: variphi
-      REGION: asia-south1
-      IMAGE_REPO: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-app
-      HELM_CHART_PATH: helm-chart/lms-app
-      RELEASE_NAME: lms-app
-      NAMESPACE: lms
-
     steps:
-      # 1️⃣ Code checkout
-      - name: Checkout source code
+      # 1️⃣ Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ GCP Authentication
-      - name: Authenticate to Google Cloud
+      # 2️⃣ Authenticate to GCP
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -32,38 +24,38 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ env.PROJECT_ID }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # 4️⃣ Configure Docker for Artifact Registry
-      - name: Configure Docker auth
+      # 4️⃣ Configure Docker for GAR
+      - name: Configure Docker for GAR
         run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
 
-      # 5️⃣ Build Docker Image
+      # 5️⃣ Build Docker image
       - name: Build Docker image
         run: |
           docker build \
-            -t ${{ env.IMAGE_REPO }}:${{ github.sha }} \
+            -t asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/vgiskill/lms-app:latest \
             .
 
-      # 6️⃣ Push Docker Image
+      # 6️⃣ Push image to GAR
       - name: Push Docker image
         run: |
-          docker push ${{ env.IMAGE_REPO }}:${{ github.sha }}
+          docker push asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/vgiskill/lms-app:latest
 
       # 7️⃣ Get GKE credentials
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials \
             gke-prod-asia-south1 \
-            --region asia-south1
+            --region asia-south1 \
+            --project ${{ secrets.GCP_PROJECT_ID }}
 
-      # 8️⃣ Helm Deploy
-      - name: Deploy to GKE using Helm
+      # 8️⃣ Deploy using Helm
+      - name: Deploy with Helm
         run: |
-          helm upgrade --install ${{ env.RELEASE_NAME }} \
-            ${{ env.HELM_CHART_PATH }} \
-            --namespace ${{ env.NAMESPACE }} \
+          helm upgrade --install lms ./helm-chart \
+            --namespace lms \
             --create-namespace \
-            --set image.repository=${{ env.IMAGE_REPO }} \
-            --set image.tag=${{ github.sha }}
+            --values helm-chart/values.yaml \
+            --set image.tag=latest

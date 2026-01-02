@@ -592,3 +592,8 @@ This project is built on Frappe Framework, which is licensed under MIT.
 [![Stars](https://img.shields.io/github/stars/shivamskr151/vgiskill_lms_app)](https://github.com/shivamskr151/vgiskill_lms_app/stargazers)
 
 </div>
+
+
+
+
+<!-- CI TEST -->
