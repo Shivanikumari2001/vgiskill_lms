@@ -1,174 +1,40 @@
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: {{ include "lms-app.fullname" . }}
-#   labels:
-#     {{- include "lms-app.labels" . | nindent 4 }}
-# spec:
-#   {{- if not .Values.autoscaling.enabled }}
-#   replicas: {{ .Values.replicaCount }}
-#   {{- end }}
-#   selector:
-#     matchLabels:
-#       {{- include "lms-app.selectorLabels" . | nindent 6 }}
-#   template:
-#     metadata:
-#       {{- with .Values.podAnnotations }}
-#       annotations:
-#         {{- toYaml . | nindent 8 }}
-#       {{- end }}
-#       labels:
-#         {{- include "lms-app.selectorLabels" . | nindent 8 }}
-#     spec:
-#       {{- with .Values.imagePullSecrets }}
-#       imagePullSecrets:
-#         {{- toYaml . | nindent 8 }}
-#       {{- end }}
-#       serviceAccountName: {{ include "lms-app.serviceAccountName" . }}
-#       securityContext:
-#         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-#       containers:
-#         - name: {{ .Chart.Name }}
-#           securityContext:
-#             {{- toYaml .Values.securityContext | nindent 12 }}
-#           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-#           imagePullPolicy: {{ .Values.image.pullPolicy }}
-#           ports:
-#             - name: http
-#               containerPort: {{ .Values.app.port }}
-#               protocol: TCP
-#             - name: socketio
-#               containerPort: {{ .Values.app.socketioPort }}
-#               protocol: TCP
-#           env:
-#             - name: DB_HOST
-#               value: "{{ .Values.db.host }}"
-#             - name: DB_PORT
-#               value: "{{ .Values.db.port | toString }}"
-#             - name: DB_ROOT_USER
-#               value: "{{ .Values.db.rootUser }}"
-#             - name: DB_ROOT_PASSWORD
-#               valueFrom:
-#                 secretKeyRef:
-#                   name: {{ include "lms-app.fullname" . }}-db-secret
-#                   key: rootPassword
-#             - name: SITE_NAME
-#               value: "{{ .Values.app.siteName }}"
-#             - name: SITE_URL
-#               value: "{{ .Values.app.siteUrl }}"
-#             - name: ADMIN_PASSWORD
-#               valueFrom:
-#                 secretKeyRef:
-#                   name: {{ include "lms-app.fullname" . }}-db-secret
-#                   key: adminPassword
-#             - name: REDIS_CACHE
-#               value: "{{ .Values.redis.cache }}"
-#             - name: REDIS_QUEUE
-#               value: "{{ .Values.redis.queue }}"
-#             - name: REDIS_SOCKETIO
-#               value: "{{ .Values.redis.socketio }}"
-#           volumeMounts:
-#             - name: sites-data
-#               mountPath: /home/frappe/frappe-bench/sites
-#             - name: logs-data
-#               mountPath: /home/frappe/frappe-bench/logs
-#           livenessProbe:
-#             httpGet:
-#               path: /
-#               port: http
-#             initialDelaySeconds: 120
-#             periodSeconds: 30
-#             timeoutSeconds: 10
-#             failureThreshold: 3
-#           readinessProbe:
-#             httpGet:
-#               path: /
-#               port: http
-#             initialDelaySeconds: 60
-#             periodSeconds: 10
-#             timeoutSeconds: 5
-#             failureThreshold: 3
-#           resources:
-#             {{- toYaml .Values.resources | nindent 12 }}
-#       volumes:
-#         - name: sites-data
-#           {{- if .Values.persistence.sites.enabled }}
-#           persistentVolumeClaim:
-#             claimName: {{ include "lms-app.fullname" . }}-sites
-#           {{- else }}
-#           emptyDir: {}
-#           {{- end }}
-#         - name: logs-data
-#           {{- if .Values.persistence.logs.enabled }}
-#           persistentVolumeClaim:
-#             claimName: {{ include "lms-app.fullname" . }}-logs
-#           {{- else }}
-#           emptyDir: {}
-#           {{- end }}
-#       {{- with .Values.nodeSelector }}
-#       nodeSelector:
-#         {{- toYaml . | nindent 8 }}
-#       {{- end }}
-#       {{- with .Values.affinity }}
-#       affinity:
-#         {{- toYaml . | nindent 8 }}
-#       {{- end }}
-#       {{- with .Values.tolerations }}
-#       tolerations:
-#         {{- toYaml . | nindent 8 }}
-#       {{- end }}
-
-
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "lms-app.fullname" . }}
   labels:
     {{- include "lms-app.labels" . | nindent 4 }}
+
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
+
   selector:
     matchLabels:
       {{- include "lms-app.selectorLabels" . | nindent 6 }}
+
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       labels:
         {{- include "lms-app.selectorLabels" . | nindent 8 }}
+
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       serviceAccountName: {{ include "lms-app.serviceAccountName" . }}
+
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
 
       containers:
-        - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+        - name: lms
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 
           ports:
             - name: http
               containerPort: {{ .Values.app.port }}
-              protocol: TCP
             - name: socketio
               containerPort: {{ .Values.app.socketioPort }}
-              protocol: TCP
 
           env:
-            # -------------------------
-            # DATABASE
-            # -------------------------
             - name: DB_HOST
               value: "{{ .Values.db.host }}"
             - name: DB_PORT
@@ -188,23 +54,17 @@ spec:
                   name: {{ .Values.db.rootPasswordSecret }}
                   key: {{ .Values.db.rootPasswordKey }}
 
-            # -------------------------
-            # APPLICATION
-            # -------------------------
-            - name: SITE_NAME
-              value: "{{ .Values.app.siteName }}"
-            - name: SITE_URL
-              value: "{{ .Values.app.siteUrl }}"
-
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.app.adminPasswordSecret }}
                   key: {{ .Values.app.adminPasswordKey }}
 
-            # -------------------------
-            # REDIS
-            # -------------------------
+            - name: SITE_NAME
+              value: "{{ .Values.app.siteName }}"
+            - name: SITE_URL
+              value: "{{ .Values.app.siteUrl }}"
+
             - name: REDIS_CACHE
               value: "{{ .Values.redis.cache }}"
             - name: REDIS_QUEUE
@@ -218,55 +78,13 @@ spec:
             - name: logs-data
               mountPath: /home/frappe/frappe-bench/logs
 
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 120
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 3
-
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
 
       volumes:
         - name: sites-data
-          {{- if .Values.persistence.sites.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "lms-app.fullname" . }}-sites
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-
         - name: logs-data
-          {{- if .Values.persistence.logs.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "lms-app.fullname" . }}-logs
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
