@@ -1,0 +1,59 @@
+name: Build & Deploy LMS to GKE
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Authenticate to GCP
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # 3️⃣ Setup gcloud (PROJECT AUTO SET)
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: variphi   # 🔥 direct, no secret
+
+      # 4️⃣ Configure Docker for Artifact Registry
+      - name: Configure Docker for GAR
+        run: |
+          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+
+      # 5️⃣ Build Docker image (FIXED PROJECT ID)
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t asia-south1-docker.pkg.dev/${CLOUDSDK_CORE_PROJECT}/vgiskill/lms-app:latest \
+            .
+
+      # 6️⃣ Push Docker image
+      - name: Push Docker image
+        run: |
+          docker push asia-south1-docker.pkg.dev/${CLOUDSDK_CORE_PROJECT}/vgiskill/lms-app:latest
+
+      # 7️⃣ Get GKE credentials
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials gke-prod-asia-south1 \
+            --region asia-south1 \
+            --project ${CLOUDSDK_CORE_PROJECT}
+
+      # 8️⃣ Deploy using Helm (CORRECT CHART PATH)
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install lms ./helm-chart/lms-app \
+            --namespace lms \
+            --create-namespace \
+            --set image.tag=latest
