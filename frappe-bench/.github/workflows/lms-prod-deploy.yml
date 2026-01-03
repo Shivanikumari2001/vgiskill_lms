@@ -59,3 +59,8 @@ jobs:
             --create-namespace \
             --values helm-chart/values.yaml \
             --set image.tag=latest
+
+
+
+
+# CI/CD trigger test - no logic change
