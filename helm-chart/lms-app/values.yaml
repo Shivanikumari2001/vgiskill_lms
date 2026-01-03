@@ -1,4 +1,119 @@
-replicaCount: 1
+# replicaCount: 1
+
+# image:
+#   repository: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-app
+#   pullPolicy: Always
+#   tag: "latest"
+
+# imagePullSecrets: []
+# nameOverride: ""
+# fullnameOverride: ""
+
+# serviceAccount:
+#   create: true
+#   annotations: {}
+#   name: ""
+
+# podAnnotations: {}
+
+# podSecurityContext:
+#   runAsUser: 1000
+#   runAsGroup: 1000
+#   fsGroup: 1000
+
+# securityContext:
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop:
+#     - ALL
+#   readOnlyRootFilesystem: false
+
+# service:
+#   type: ClusterIP
+#   port: 8000
+#   targetPort: 8000
+#   socketioPort: 9000
+
+# ingress:
+#   enabled: true
+#   className: "gce"
+#   annotations:
+#     kubernetes.io/ingress.class: "gce"
+#     kubernetes.io/ingress.global-static-ip-name: "lms-ingress-ip"
+#     ingress.gcp.kubernetes.io/pre-shared-cert: "mcrt-71298f60-a102-44b4-ae9f-40dc28d1462c"
+#     kubernetes.io/ingress.allow-http: "false"
+#   hosts:
+#     - host: vgiskill.ai
+#       paths:
+#         - path: /socket.io
+#           pathType: Prefix
+#           backendPort: socketio
+#         - path: /
+#           pathType: Prefix
+#           backendPort: http
+#   tls: []
+
+# resources:
+#   limits:
+#     cpu: 2000m
+#     memory: 8Gi
+#   requests:
+#     cpu: 1000m
+#     memory: 4Gi
+
+# nodeSelector:
+#   cloud.google.com/gke-nodepool: gke-prod-asia-south1-np-app-prod
+
+# tolerations: []
+
+# affinity: {}
+
+# autoscaling:
+#   enabled: false
+#   minReplicas: 1
+#   maxReplicas: 10
+#   targetCPUUtilizationPercentage: 80
+#   targetMemoryUtilizationPercentage: 80
+
+# # Database Configuration
+# db:
+#   host: "10.30.0.2"
+#   port: 3306
+#   user: "vgi_skill"
+#   password: "vgiskill@2026"
+#   name: "lms_db"
+#   rootUser: "root"
+#   rootPassword: "vgiskill@2026#"
+
+# # Redis Configuration
+# redis:
+#   cache: "redis://redis:6379"
+#   queue: "redis://redis:6379"
+#   socketio: "redis://redis:6379"
+
+# # Application Configuration
+# app:
+#   port: 8000
+#   socketioPort: 9000
+#   siteName: "vgiskill.ai"
+#   siteUrl: "https://vgiskill.ai"
+#   adminPassword: "admin"
+
+# # Persistent Volumes
+# persistence:
+#   sites:
+#     enabled: true
+#     storageClass: "standard-rwo"
+#     size: 20Gi
+#     accessMode: ReadWriteOnce
+#   logs:
+#     enabled: true
+#     storageClass: "standard-rwo"
+#     size: 5Gi
+#     accessMode: ReadWriteOnce
+
+
+replicaCount: 2
 
 image:
   repository: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-app
@@ -6,6 +121,7 @@ image:
   tag: "latest"
 
 imagePullSecrets: []
+
 nameOverride: ""
 fullnameOverride: ""
 
@@ -25,7 +141,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-    - ALL
+      - ALL
   readOnlyRootFilesystem: false
 
 service:
@@ -54,52 +170,60 @@ ingress:
   tls: []
 
 resources:
-  limits:
-    cpu: 2000m
-    memory: 8Gi
   requests:
     cpu: 1000m
     memory: 4Gi
+  limits:
+    cpu: 2000m
+    memory: 8Gi
 
 nodeSelector:
   cloud.google.com/gke-nodepool: gke-prod-asia-south1-np-app-prod
 
 tolerations: []
-
 affinity: {}
 
 autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 80
-  targetMemoryUtilizationPercentage: 80
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 75
 
-# Database Configuration
+# -------------------------
+# DATABASE (SECURE)
+# -------------------------
 db:
   host: "10.30.0.2"
   port: 3306
   user: "vgi_skill"
-  password: "vgiskill@2026"
   name: "lms_db"
-  rootUser: "root"
-  rootPassword: "vgiskill@2026#"
+  passwordSecret: lms-secrets
+  passwordKey: db-password
+  rootPasswordKey: db-root-password
 
-# Redis Configuration
+# -------------------------
+# REDIS
+# -------------------------
 redis:
   cache: "redis://redis:6379"
   queue: "redis://redis:6379"
   socketio: "redis://redis:6379"
 
-# Application Configuration
+# -------------------------
+# APPLICATION
+# -------------------------
 app:
   port: 8000
   socketioPort: 9000
   siteName: "vgiskill.ai"
   siteUrl: "https://vgiskill.ai"
-  adminPassword: "admin"
+  adminPasswordSecret: lms-secrets
+  adminPasswordKey: admin-password
 
-# Persistent Volumes
+# -------------------------
+# PERSISTENCE
+# -------------------------
 persistence:
   sites:
     enabled: true
@@ -111,4 +235,3 @@ persistence:
     storageClass: "standard-rwo"
     size: 5Gi
     accessMode: ReadWriteOnce
-

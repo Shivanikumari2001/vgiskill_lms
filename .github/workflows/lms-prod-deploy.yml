@@ -5,6 +5,14 @@ on:
     branches:
       - main
 
+env:
+  PROJECT_ID: variphi
+  REGION: asia-south1
+  GAR_REPO: vgiskill
+  IMAGE_NAME: lms-app
+  CLUSTER_NAME: gke-prod-asia-south1
+  NAMESPACE: lms
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -14,52 +22,49 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Authenticate to GCP using Service Account
+      # 2️⃣ Authenticate to GCP (Service Account)
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 3️⃣ Setup gcloud (project auto-exported as env vars)
+      # 3️⃣ Setup gcloud
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: variphi   # 🔥 hardcoded to avoid empty secrets
+          project_id: ${{ env.PROJECT_ID }}
 
       # 4️⃣ Configure Docker for Artifact Registry
-      - name: Configure Docker for Artifact Registry
+      - name: Configure Docker
         run: |
-          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 5️⃣ Debug (ONE-TIME – helps confirm project id)
-      - name: Debug project id
-        run: |
-          echo "CLOUDSDK_CORE_PROJECT=$CLOUDSDK_CORE_PROJECT"
-
-      # 6️⃣ Build Docker image (FIXED – NO DOUBLE SLASH)
+      # 5️⃣ Build Docker image (TAG = commit SHA)
       - name: Build Docker image
         run: |
           docker build \
-            -t asia-south1-docker.pkg.dev/$CLOUDSDK_CORE_PROJECT/vgiskill/lms-app:latest \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
 
-      # 7️⃣ Push Docker image to Artifact Registry
+      # 6️⃣ Push Docker image
       - name: Push Docker image
         run: |
-          docker push asia-south1-docker.pkg.dev/$CLOUDSDK_CORE_PROJECT/vgiskill/lms-app:latest
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # 8️⃣ Get GKE credentials
+      # 7️⃣ Get GKE credentials
       - name: Get GKE credentials
         run: |
-          gcloud container clusters get-credentials gke-prod-asia-south1 \
-            --region asia-south1 \
-            --project $CLOUDSDK_CORE_PROJECT
+          gcloud container clusters get-credentials ${{ env.CLUSTER_NAME }} \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --quiet
 
-      # 9️⃣ Deploy using Helm (CORRECT CHART PATH)
+      # 8️⃣ Deploy using Helm (wait till pods ready)
       - name: Deploy with Helm
         run: |
           helm upgrade --install lms ./helm-chart/lms-app \
-            --namespace lms \
+            --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
-            --set image.repository=asia-south1-docker.pkg.dev/$CLOUDSDK_CORE_PROJECT/vgiskill/lms-app \
-            --set image.tag=latest
+            --set image.repository=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            --wait
