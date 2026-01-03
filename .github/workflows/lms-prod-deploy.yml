@@ -68,3 +68,4 @@ jobs:
             --set image.repository=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }} \
             --set image.tag=${{ github.sha }} \
             --wait
+# trigger ci rerun
