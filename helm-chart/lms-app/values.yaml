@@ -113,12 +113,13 @@
 #     accessMode: ReadWriteOnce
 
 
+
 replicaCount: 2
 
 image:
   repository: asia-south1-docker.pkg.dev/variphi/vgiskill/lms-app
-  pullPolicy: Always
-  tag: "latest"
+  pullPolicy: IfNotPresent
+  tag: "" # CI/CD --set image.tag=${{ github.sha }} se set karega
 
 imagePullSecrets: []
 
@@ -144,12 +145,18 @@ securityContext:
       - ALL
   readOnlyRootFilesystem: false
 
+# -------------------------
+# SERVICE
+# -------------------------
 service:
   type: ClusterIP
   port: 8000
   targetPort: 8000
   socketioPort: 9000
 
+# -------------------------
+# INGRESS (GCE)
+# -------------------------
 ingress:
   enabled: true
   className: "gce"
@@ -169,20 +176,29 @@ ingress:
           backendPort: http
   tls: []
 
+# -------------------------
+# RESOURCES
+# -------------------------
 resources:
   requests:
-    cpu: 1000m
-    memory: 4Gi
+    cpu: "1000m"
+    memory: "4Gi"
   limits:
-    cpu: 2000m
-    memory: 8Gi
+    cpu: "2000m"
+    memory: "8Gi"
 
+# -------------------------
+# NODE SELECTION
+# -------------------------
 nodeSelector:
   cloud.google.com/gke-nodepool: gke-prod-asia-south1-np-app-prod
 
 tolerations: []
 affinity: {}
 
+# -------------------------
+# AUTOSCALING (HPA)
+# -------------------------
 autoscaling:
   enabled: true
   minReplicas: 2
@@ -190,16 +206,22 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 75
 
+# ⚠️ IMPORTANT
+# Jab autoscaling enabled ho, replicaCount ko minReplicas ke equal rakho
+
 # -------------------------
-# DATABASE (SECURE)
+# DATABASE (SECRET-BASED)
 # -------------------------
 db:
   host: "10.30.0.2"
   port: 3306
   user: "vgi_skill"
   name: "lms_db"
+
   passwordSecret: lms-secrets
   passwordKey: db-password
+
+  rootPasswordSecret: lms-secrets
   rootPasswordKey: db-root-password
 
 # -------------------------
@@ -218,6 +240,7 @@ app:
   socketioPort: 9000
   siteName: "vgiskill.ai"
   siteUrl: "https://vgiskill.ai"
+
   adminPasswordSecret: lms-secrets
   adminPasswordKey: admin-password
 
@@ -230,6 +253,7 @@ persistence:
     storageClass: "standard-rwo"
     size: 20Gi
     accessMode: ReadWriteOnce
+
   logs:
     enabled: true
     storageClass: "standard-rwo"
