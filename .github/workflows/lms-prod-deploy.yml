@@ -22,44 +22,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Authenticate to GCP (Service Account)
-      - name: Authenticate to GCP
+      # 2️⃣ Authenticate to GCP (Service Account from GitHub Secrets)
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 3️⃣ Setup gcloud
+      # 3️⃣ Setup gcloud CLI
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.PROJECT_ID }}
 
       # 4️⃣ Configure Docker for Artifact Registry
-      - name: Configure Docker
+      - name: Configure Docker for GAR
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 5️⃣ Build Docker image (TAG = commit SHA)
+      # 5️⃣ Build Docker image (tag = commit SHA)
       - name: Build Docker image
         run: |
           docker build \
             -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
 
-      # 6️⃣ Push Docker image
+      # 6️⃣ Push Docker image to Artifact Registry
       - name: Push Docker image
         run: |
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push \
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # 7️⃣ Get GKE credentials
+      # 7️⃣ Get GKE cluster credentials
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials ${{ env.CLUSTER_NAME }} \
             --region ${{ env.REGION }} \
-            --project ${{ env.PROJECT_ID }} \
-            --quiet
+            --project ${{ env.PROJECT_ID }}
 
-      # 8️⃣ Deploy using Helm (wait till pods ready)
+      # 8️⃣ Deploy to GKE using Helm
       - name: Deploy with Helm
         run: |
           helm upgrade --install lms ./helm-chart/lms-app \
@@ -68,4 +68,3 @@ jobs:
             --set image.repository=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }} \
             --set image.tag=${{ github.sha }} \
             --wait
-# trigger ci rerun
