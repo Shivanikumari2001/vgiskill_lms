@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Authenticate to GCP (Service Account from GitHub Secrets)
+      # 2️⃣ Authenticate to Google Cloud
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -34,32 +34,42 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 4️⃣ Configure Docker for Artifact Registry
-      - name: Configure Docker for GAR
+      # 4️⃣ 🔥 REQUIRED FIX: Install GKE auth plugin
+      - name: Install GKE gcloud auth plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin --quiet
+          gcloud config set container/use_application_default_credentials true
+
+      # 5️⃣ Configure Docker for Artifact Registry
+      - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 5️⃣ Build Docker image (tag = commit SHA)
+      # 6️⃣ Build Docker image (tag = commit SHA)
       - name: Build Docker image
         run: |
           docker build \
             -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
 
-      # 6️⃣ Push Docker image to Artifact Registry
+      # 7️⃣ Push Docker image
       - name: Push Docker image
         run: |
           docker push \
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # 7️⃣ Get GKE cluster credentials
+      # 8️⃣ Get GKE cluster credentials
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials ${{ env.CLUSTER_NAME }} \
             --region ${{ env.REGION }} \
             --project ${{ env.PROJECT_ID }}
 
-      # 8️⃣ Deploy to GKE using Helm
+      # 9️⃣ (Optional but good) Verify cluster access
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      # 🔟 Deploy to GKE using Helm
       - name: Deploy with Helm
         run: |
           helm upgrade --install lms ./helm-chart/lms-app \
