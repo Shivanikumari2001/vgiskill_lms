@@ -34,7 +34,7 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 4️⃣ 🔥 REQUIRED FIX: Install GKE auth plugin
+      # 4️⃣ Install GKE auth plugin (MANDATORY)
       - name: Install GKE gcloud auth plugin
         run: |
           gcloud components install gke-gcloud-auth-plugin --quiet
@@ -45,7 +45,7 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 6️⃣ Build Docker image (tag = commit SHA)
+      # 6️⃣ Build Docker image (immutable tag = commit SHA)
       - name: Build Docker image
         run: |
           docker build \
@@ -65,9 +65,11 @@ jobs:
             --region ${{ env.REGION }} \
             --project ${{ env.PROJECT_ID }}
 
-      # 9️⃣ (Optional but good) Verify cluster access
+      # 9️⃣ Verify cluster access
       - name: Verify cluster access
-        run: kubectl get nodes
+        run: |
+          kubectl get nodes
+          kubectl get ns
 
       # 🔟 Deploy to GKE using Helm
       - name: Deploy with Helm
